@@ -1,0 +1,89 @@
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+
+const int btnLeft = 12;  
+const int btnRight = 13; 
+
+int playerPos = 1; 
+int enemyY = -20;
+int enemyLane = 0;
+int score = 0;
+unsigned long lastUpdate = 0;
+int gameSpeed = 60;
+int trackOffset = 0;
+
+void drawCar(int lane, int y) {
+  int x = 42 + (lane * 16); 
+  display.fillRect(x + 4, y, 6, 12, WHITE);
+  display.fillRect(x, y + 2, 3, 3, WHITE);
+  display.fillRect(x + 11, y + 2, 3, 3, WHITE);
+  display.fillRect(x, y + 8, 3, 3, WHITE);
+  display.fillRect(x + 11, y + 8, 3, 3, WHITE);
+}
+
+void setup() {
+  pinMode(btnLeft, INPUT_PULLUP);
+  pinMode(btnRight, INPUT_PULLUP);
+  
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(WHITE);
+  display.setCursor(30, 25);
+  display.print("BRICK GAME");
+  display.display();
+  delay(2000);
+}
+
+void loop() {
+  //Botoes
+  if (digitalRead(btnLeft) == LOW) { 
+    if (playerPos > 0) playerPos--; 
+    while(digitalRead(btnLeft) == LOW) delay(10); 
+  }
+  if (digitalRead(btnRight) == LOW) { 
+    if (playerPos < 2) playerPos++; 
+    while(digitalRead(btnRight) == LOW) delay(10); 
+  }
+
+  // Move do Inimigo e rua
+  if (millis() - lastUpdate > (110 - gameSpeed)) {
+    enemyY += 4;
+    trackOffset = (trackOffset + 4) % 12;
+    lastUpdate = millis();
+    
+    if (enemyY > SCREEN_HEIGHT) {
+      enemyY = -20;
+      enemyLane = random(0, 3);
+      score++;
+    }
+  }
+
+  // Colisao
+  if (enemyLane == playerPos && enemyY > 40 && enemyY < 58) {
+    display.clearDisplay();
+    display.setCursor(35, 25);
+    display.print("BATEU!");
+    display.display();
+    delay(2000);
+    score = 0; enemyY = -20;
+  }
+
+  // tela
+  display.clearDisplay();
+  // Faixas laterais
+  for (int i = -10; i < 64; i += 12) {
+    display.fillRect(35, i + trackOffset, 2, 6, WHITE);
+    display.fillRect(91, i + trackOffset, 2, 6, WHITE);
+  }
+  drawCar(playerPos, 48);
+  drawCar(enemyLane, enemyY);
+  display.setCursor(0, 0);
+  display.print("PTS:"); display.print(score);
+  display.display();
+}
