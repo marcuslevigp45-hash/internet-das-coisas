@@ -1,0 +1,122 @@
+//----------------------------------------------------------------------------------------------------------------------------------------------
+#include "WiFi.h"
+#include <WebServer.h>
+#include "DHT.h"
+#include <Adafruit_SSD1306.h>
+#include <Wire.h>
+#include "senha.ino"
+
+const char *ssid = WIFI_SSID;
+const char *password = WIFI_PASSWORD;
+
+int ldr = 0;
+int temperatura = 0;
+int umidade = 0;
+
+int estadoVentilador = 0;
+int estadoRefletor = 0;
+int estadoExaustor = 0;
+
+WebServer server(80);
+
+void setup() {
+  Serial.begin(115200);
+
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\nConectado! IP: " + WiFi.localIP().toString());
+
+  // endpoints
+  server.on("/monitoramento", HTTP_GET, handle_monitoramento);
+  server.on("/ventilador", HTTP_POST, handle_ventilador);
+  server.on("/refletor", HTTP_POST, handle_refletor);
+  server.on("/exaustor", HTTP_POST, handle_exaustor);
+  
+  server.onNotFound(handle_not_found);
+  
+  server.begin();
+}
+
+void loop() {
+  server.handleClient();
+  
+}
+
+
+void handle_refletor() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  
+  if (server.hasArg("intensidade") || server.hasArg("valor")) { 
+    String input = server.hasArg("intensidade") ? server.arg("intensidade") : server.arg("valor");
+    int valor = input.toInt();
+
+    if ((valor == 0 && input != "0") || valor < 0 || valor > 255) {
+      server.send(400, "text/plain", "Erro ...");
+    } else {
+      estadoRefletor = valor;
+      server.send(200, "text/plain", "Refletor alterado");
+    }
+  } else {
+    server.send(400, "text/plain", "Erro ...");
+  }
+}
+
+void handle_exaustor() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  
+  if (server.hasArg("potencia") || server.hasArg("valor")) {
+    String input = server.hasArg("potencia") ? server.arg("potencia") : server.arg("valor");
+    int valor = input.toInt();
+
+    if ((valor == 0 && input != "0") || valor < 0 || valor > 255) {
+      server.send(400, "text/plain", "Erro ...");
+    } else {
+      estadoExaustor = valor;
+      server.send(200, "text/plain", "Exaustor alterado");
+    }
+  } else {
+    server.send(400, "text/plain", "Erro ...");
+  }
+}
+
+void handle_ventilador() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  if (server.hasArg("velocidade")) {
+    estadoVentilador = server.arg("velocidade").toInt();
+    server.send(200, "text/plain", "Velocidade alterada");
+  } else {
+    server.send(400, "text/plain", "Erro ...");
+  }
+}
+
+void handle_monitoramento() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  
+  String json = "{";
+  json += "\"luz\":" + String(ldr) + ",";
+  json += "\"temperatura\":" + String(temperatura) + ",";
+  json += "\"umidade\":" + String(umidade) + ",";
+  json += "\"ventilador\":" + String(estadoVentilador) + ",";
+  json += "\"refletor\":" + String(estadoRefletor) + ",";
+  json += "\"exaustor\":" + String(estadoExaustor);
+  json += "}";
+  
+  server.send(200, "application/json", json);
+}
+
+void handle_not_found() {
+
+  if (server.method() == HTTP_OPTIONS) {
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+    server.sendHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
+    server.sendHeader("Access-Control-Allow-Headers", "Content-Type");
+    server.send(204);
+  } else {
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+    server.send(404, "text/plain", "Erro ...");
+  }
+}
